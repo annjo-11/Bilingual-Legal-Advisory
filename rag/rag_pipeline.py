@@ -64,7 +64,7 @@ def answer_question(question):
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=5,
+        n_results=3,
         include=[
             "documents",
             "metadatas",
@@ -107,6 +107,10 @@ def answer_question(question):
         print("\n----------------------------------------")
 
         print(f"Result {i + 1}")
+
+        print(
+            f"Section: {metadata.get('section', 'Unknown')}"
+            )
 
         print(
             f"Page: {metadata.get('page', 'Unknown')}"

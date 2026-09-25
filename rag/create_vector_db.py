@@ -1,126 +1,190 @@
-import json
 from pathlib import Path
+import json
 
 import chromadb
 from sentence_transformers import SentenceTransformer
 
 
-# --------------------------------------------------
-# PROJECT PATHS
-# --------------------------------------------------
+# ==================================================
+# 1. PROJECT PATH
+# ==================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-CHUNKS_FILE = BASE_DIR / "data" / "processed" / "chunks.json"
-
-VECTOR_DB_FOLDER = BASE_DIR / "data" / "vector_db"
-
-
-# --------------------------------------------------
-# CREATE VECTOR DATABASE FOLDER
-# --------------------------------------------------
-
-VECTOR_DB_FOLDER.mkdir(parents=True, exist_ok=True)
+CHUNKS_PATH = BASE_DIR / "data" / "processed" / "chunks.json"
+VECTOR_DB_PATH = BASE_DIR / "data" / "vector_db"
 
 
-# --------------------------------------------------
-# LOAD CHUNKS
-# --------------------------------------------------
+# ==================================================
+# 2. LOAD CHUNKS
+# ==================================================
 
 print("Loading chunks...")
 
-with open(CHUNKS_FILE, "r", encoding="utf-8") as file:
-    chunks = json.load(file)
+with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+    chunks = json.load(f)
 
-print(f"Loaded {len(chunks)} chunks.")
-
-
-# --------------------------------------------------
-# LOAD EMBEDDING MODEL
-# --------------------------------------------------
-
-print("\nLoading embedding model...")
-
-model = SentenceTransformer("all-MiniLM-L6-v2")
-
-print("Embedding model loaded.")
+print("Number of chunks:", len(chunks))
 
 
-# --------------------------------------------------
-# CREATE CHROMADB CLIENT
-# --------------------------------------------------
+# ==================================================
+# 3. LOAD EMBEDDING MODEL
+# ==================================================
+
+print("Loading embedding model...")
+
+embedding_model = SentenceTransformer(
+    "all-MiniLM-L6-v2"
+)
+
+
+# ==================================================
+# 4. CONNECT TO CHROMADB
+# ==================================================
 
 client = chromadb.PersistentClient(
-    path=str(VECTOR_DB_FOLDER)
+    path=str(VECTOR_DB_PATH)
 )
 
 
-# --------------------------------------------------
-# CREATE COLLECTION
-# --------------------------------------------------
+# ==================================================
+# 5. DELETE OLD COLLECTION
+# ==================================================
 
-collection = client.get_or_create_collection(
-    name="legal_documents"
+print("Removing old collection...")
+
+try:
+    client.delete_collection(
+        name="legal_documents"
+    )
+
+    print("Old collection deleted.")
+
+except Exception:
+    print("No old collection found.")
+
+
+# ==================================================
+# 6. CREATE NEW COLLECTION
+# ==================================================
+
+collection = client.create_collection(
+    name="legal_documents",
+    metadata={
+        "hnsw:space": "cosine"
+    }
 )
 
 
-# --------------------------------------------------
-# PREPARE DATA
-# --------------------------------------------------
+# ==================================================
+# 7. PREPARE DATA
+# ==================================================
 
-ids = []
 documents = []
 metadatas = []
+ids = []
 
 
-for chunk in chunks:
+for i, chunk in enumerate(chunks):
 
-    ids.append(chunk["chunk_id"])
+    # ----------------------------------------------
+    # Get text
+    # ----------------------------------------------
 
-    documents.append(chunk["text"])
+    if "text" in chunk:
+        text = chunk["text"]
+
+    elif "content" in chunk:
+        text = chunk["content"]
+
+    elif "chunk" in chunk:
+        text = chunk["chunk"]
+
+    else:
+        print("Could not find text in chunk:", i)
+        continue
+
+
+    # ----------------------------------------------
+    # Metadata
+    # ----------------------------------------------
+
+    section = chunk.get(
+        "section",
+        "Unknown"
+    )
+
+    page = chunk.get(
+        "page",
+        "Unknown"
+    )
+
+    document_name = chunk.get(
+        "document",
+        "IT_Act_2000.pdf"
+    )
+
+
+    documents.append(text)
 
     metadatas.append({
-        "document": chunk["document"],
-        "page": chunk["page"]
+        "section": str(section),
+        "page": str(page),
+        "document": str(document_name)
     })
 
+    ids.append(
+        f"chunk_{i}"
+    )
 
-# --------------------------------------------------
-# CREATE EMBEDDINGS
-# --------------------------------------------------
 
-print("\nCreating embeddings...")
+# ==================================================
+# 8. CREATE EMBEDDINGS
+# ==================================================
 
-embeddings = model.encode(
+print("Creating embeddings...")
+
+embeddings = embedding_model.encode(
     documents,
     show_progress_bar=True
-)
+).tolist()
 
 
-# --------------------------------------------------
-# STORE EVERYTHING IN CHROMADB
-# --------------------------------------------------
+# ==================================================
+# 9. STORE IN CHROMADB
+# ==================================================
 
-print("\nStoring data in vector database...")
+print("Adding documents to ChromaDB...")
 
 collection.add(
     ids=ids,
     documents=documents,
-    embeddings=embeddings.tolist(),
+    embeddings=embeddings,
     metadatas=metadatas
 )
 
 
-# --------------------------------------------------
-# FINAL MESSAGE
-# --------------------------------------------------
+# ==================================================
+# 10. VERIFY
+# ==================================================
 
-print("\nVector database created successfully!")
+print("\n========================================")
+print("VECTOR DATABASE CREATED")
+print("========================================")
 
 print(
-    f"Total documents stored: {collection.count()}"
+    "Documents stored:",
+    collection.count()
 )
 
 print(
-    f"Database location: {VECTOR_DB_FOLDER}"
+    "Collection:",
+    collection.name
 )
+
+print(
+    "Database path:",
+    VECTOR_DB_PATH
+)
+
+print("========================================")

@@ -4,28 +4,30 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 
 
-# --------------------------------------------------
-# PROJECT PATHS
-# --------------------------------------------------
+# ==================================================
+# PATH
+# ==================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-VECTOR_DB_FOLDER = BASE_DIR / "data" / "vector_db"
+VECTOR_DB_PATH = BASE_DIR / "data" / "vector_db"
 
 
-# --------------------------------------------------
-# LOAD EMBEDDING MODEL
-# --------------------------------------------------
+# ==================================================
+# EMBEDDING MODEL
+# ==================================================
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+embedding_model = SentenceTransformer(
+    "all-MiniLM-L6-v2"
+)
 
 
-# --------------------------------------------------
-# CONNECT TO VECTOR DATABASE
-# --------------------------------------------------
+# ==================================================
+# CHROMADB
+# ==================================================
 
 client = chromadb.PersistentClient(
-    path=str(VECTOR_DB_FOLDER)
+    path=str(VECTOR_DB_PATH)
 )
 
 collection = client.get_collection(
@@ -33,61 +35,85 @@ collection = client.get_collection(
 )
 
 
-# --------------------------------------------------
-# USER QUERY
-# --------------------------------------------------
+# ==================================================
+# QUESTION
+# ==================================================
 
-query = "What is identity theft under the Information Technology Act?"
-
-
-# --------------------------------------------------
-# CREATE QUERY EMBEDDING
-# --------------------------------------------------
-
-query_embedding = model.encode(query).tolist()
+question = "what is identity theft under section 66C"
 
 
-# --------------------------------------------------
-# SEARCH VECTOR DATABASE
-# --------------------------------------------------
+# ==================================================
+# EMBEDDING
+# ==================================================
+
+query_embedding = embedding_model.encode(
+    question
+).tolist()
+
+
+# ==================================================
+# SEARCH
+# ==================================================
 
 results = collection.query(
     query_embeddings=[query_embedding],
-    n_results=5
+    n_results=5,
+    include=[
+        "documents",
+        "metadatas",
+        "distances"
+    ]
 )
 
 
-# --------------------------------------------------
-# DISPLAY RESULTS
-# --------------------------------------------------
+# ==================================================
+# DISPLAY
+# ==================================================
 
-print("\nQUERY:")
-print(query)
+print("\n========================================")
+print("QUESTION")
+print("========================================")
 
-print("\nMOST RELEVANT RESULTS:\n")
+print(question)
+
+
+print("\n========================================")
+print("RESULTS")
+print("========================================")
 
 
 for i in range(len(results["documents"][0])):
 
-    document = results["metadatas"][0][i]
-    text = results["documents"][0][i]
-
-    print("=" * 70)
+    print("\n----------------------------------------")
 
     print(
-        f"Result {i + 1}"
+        "RESULT:",
+        i + 1
     )
 
     print(
-        f"Document: {document['document']}"
+        "SECTION:",
+        results["metadatas"][0][i].get(
+            "section",
+            "Unknown"
+        )
     )
 
     print(
-        f"Page: {document['page']}"
+        "PAGE:",
+        results["metadatas"][0][i].get(
+            "page",
+            "Unknown"
+        )
     )
 
-    print("\nText:")
+    print(
+        "DISTANCE:",
+        results["distances"][0][i]
+    )
 
-    print(text)
+    print("\nTEXT:")
 
-    print()
+    print(
+        results["documents"][0][i]
+    )
