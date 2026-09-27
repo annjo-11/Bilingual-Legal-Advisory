@@ -76,7 +76,7 @@ for message in st.session_state.messages:
             and message.get("sources")
         ):
 
-            st.caption("Sources")
+            st.markdown("### Sources")
 
             seen_sources = set()
 
@@ -187,7 +187,7 @@ if question:
 
         if sources:
 
-            st.caption("Sources")
+            st.markdown("### Sources")
 
             seen_sources = set()
 
