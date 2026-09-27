@@ -1,38 +1,4 @@
-from pathlib import Path
-
-import chromadb
-from sentence_transformers import SentenceTransformer
-
-
-# ==================================================
-# PATH
-# ==================================================
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-VECTOR_DB_PATH = BASE_DIR / "data" / "vector_db"
-
-
-# ==================================================
-# EMBEDDING MODEL
-# ==================================================
-
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
-
-
-# ==================================================
-# CHROMADB
-# ==================================================
-
-client = chromadb.PersistentClient(
-    path=str(VECTOR_DB_PATH)
-)
-
-collection = client.get_collection(
-    name="legal_documents"
-)
+from rag_pipeline import retrieve_documents
 
 
 # ==================================================
@@ -43,26 +9,14 @@ question = "what is identity theft under section 66C"
 
 
 # ==================================================
-# EMBEDDING
+# RETRIEVE
 # ==================================================
 
-query_embedding = embedding_model.encode(
-    question
-).tolist()
-
-
-# ==================================================
-# SEARCH
-# ==================================================
-
-results = collection.query(
-    query_embeddings=[query_embedding],
-    n_results=5,
-    include=[
-        "documents",
-        "metadatas",
-        "distances"
-    ]
+results = retrieve_documents(
+    question,
+    semantic_k=15,
+    keyword_k=15,
+    final_k=5
 )
 
 
@@ -78,42 +32,37 @@ print(question)
 
 
 print("\n========================================")
-print("RESULTS")
+print("HYBRID RETRIEVAL RESULTS")
 print("========================================")
 
 
-for i in range(len(results["documents"][0])):
+for i, result in enumerate(results):
+
+    metadata = result["metadata"]
 
     print("\n----------------------------------------")
-
-    print(
-        "RESULT:",
-        i + 1
-    )
+    print(f"RESULT: {i + 1}")
 
     print(
         "SECTION:",
-        results["metadatas"][0][i].get(
-            "section",
-            "Unknown"
-        )
+        metadata.get("section", "Unknown")
     )
 
     print(
         "PAGE:",
-        results["metadatas"][0][i].get(
-            "page",
-            "Unknown"
-        )
+        metadata.get("page", "Unknown")
     )
 
     print(
-        "DISTANCE:",
-        results["distances"][0][i]
+        "FUSION SCORE:",
+        result["fusion_score"]
+    )
+
+    print(
+        "BM25 SCORE:",
+        result["bm25_score"]
     )
 
     print("\nTEXT:")
 
-    print(
-        results["documents"][0][i]
-    )
+    print(result["document"])
